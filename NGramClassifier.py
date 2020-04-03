@@ -44,9 +44,9 @@ class NGramClassifier:
             highest_score = None
             language_with_highest_score = None
             for language in self.training_model.language_data.keys():
-                score = log10(self.training_model.get_probability_of_language(language))
+                score = 0
                 for ngram in ngrams:
-                    conditional_probability = self.training_model.get_conditional_probability(ngram, language)
+                    conditional_probability = self.training_model.get_ngram_probability(ngram, language)
                     if conditional_probability != 0:
                         score += log10(conditional_probability)
                     else:
