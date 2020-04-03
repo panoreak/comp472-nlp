@@ -84,15 +84,12 @@ class UnigramTrainingModel(TrainingModel):
     def __init__(self, vocabulary, smoothing_value, training_file):
         super().__init__(vocabulary, smoothing_value, training_file)
 
-        for codepoint in self.vocabulary.get_codepoint_list():
-            self.ngram_frequencies[codepoint] = dict()
-            for language in self.language_data.keys():
-                # we add smoothing value to each ngram frequency upon initialization
-                self.ngram_frequencies[codepoint][language] = self.smoothing_value
-
         for language in self.language_data.keys():
-            # also add smoothing value times the size of the vocabulary to the total ngram count
-            self.language_data[language]['total_ngram_count'] = self.smoothing_value * self.vocabulary.get_size()
+            self.ngram_frequencies[language] = dict()
+            self.ngram_frequencies[language]['freq'] = self.smoothing_value * self.vocabulary.get_size()
+            for codepoint in self.vocabulary.get_codepoint_list():
+                # we add smoothing value to each ngram frequency upon initialization
+                self.ngram_frequencies[language][codepoint] = self.smoothing_value
 
     def parse_tweet(self, tweet):
         unigrams = []
@@ -103,12 +100,12 @@ class UnigramTrainingModel(TrainingModel):
 
     def process_tweet(self, language, tweet):
         for unigram in self.parse_tweet(tweet):
-            self.ngram_frequencies[ord(unigram)][language] += 1
-            self.language_data[language]['total_ngram_count'] += 1
+            self.ngram_frequencies[language][ord(unigram)] += 1
+            self.ngram_frequencies[language]['freq'] += 1
 
     def get_conditional_probability(self, ngram, language):
-        freq_ngram_for_language = self.ngram_frequencies[ord(ngram)][language]
-        total_ngram_count_for_language = self.language_data[language]['total_ngram_count']
+        freq_ngram_for_language = self.ngram_frequencies[language][ord(ngram)]
+        total_ngram_count_for_language = self.ngram_frequencies[language]['freq']
         return freq_ngram_for_language / total_ngram_count_for_language
 
 
@@ -130,19 +127,19 @@ class TrigramTrainingModel(TrainingModel):
     def __init__(self, vocabulary, smoothing_value, training_file):
         super().__init__(vocabulary, smoothing_value, training_file)
 
-        for codepoint1 in self.vocabulary.get_codepoint_list():
-            self.ngram_frequencies[codepoint1] = dict()
-            for codepoint2 in self.vocabulary.get_codepoint_list():
-                self.ngram_frequencies[codepoint1][codepoint2] = dict()
-                self.ngram_frequencies[codepoint1][codepoint2]['freq'] = dict()
-                for language in self.language_data.keys():
-                    self.ngram_frequencies[codepoint1][codepoint2]['freq'][language] = \
-                        self.smoothing_value * self.vocabulary.get_size()
-                for codepoint3 in self.vocabulary.get_codepoint_list():
-                    self.ngram_frequencies[codepoint1][codepoint2][codepoint3] = dict()
-                    for language in self.language_data.keys():
+        codepoints = self.vocabulary.get_codepoint_list()
+
+        for language in self.language_data.keys():
+            self.ngram_frequencies[language] = dict()
+            for codepoint1 in codepoints:
+                self.ngram_frequencies[language][codepoint1] = dict()
+                for codepoint2 in codepoints:
+                    self.ngram_frequencies[language][codepoint1][codepoint2] = dict()
+                    self.ngram_frequencies[language][codepoint1][codepoint2][
+                        'freq'] = self.smoothing_value * self.vocabulary.get_size()
+                    for codepoint3 in codepoints:
                         # we add smoothing value to each ngram frequency upon initialization
-                        self.ngram_frequencies[codepoint1][codepoint2][codepoint3][language] = self.smoothing_value
+                        self.ngram_frequencies[language][codepoint1][codepoint2][codepoint3] = self.smoothing_value
 
     def parse_tweet(self, tweet):
         trigrams = []
@@ -157,12 +154,12 @@ class TrigramTrainingModel(TrainingModel):
 
     def process_tweet(self, language, tweet):
         for trigram in self.parse_tweet(tweet):
-            self.ngram_frequencies[ord(trigram[0])][ord(trigram[1])][ord(trigram[2])][language] += 1
-            self.ngram_frequencies[ord(trigram[0])][ord(trigram[1])]['freq'][language] += 1
+            self.ngram_frequencies[language][ord(trigram[0])][ord(trigram[1])][ord(trigram[2])] += 1
+            self.ngram_frequencies[language][ord(trigram[0])][ord(trigram[1])]['freq'] += 1
 
     def get_conditional_probability(self, ngram, language):
-        freq_ngram_for_language = self.ngram_frequencies[ord(ngram[0])][ord(ngram[1])][ord(ngram[2])][language]
-        freq_first_two_chars_for_language = self.ngram_frequencies[ord(ngram[0])][ord(ngram[1])]['freq'][language]
+        freq_ngram_for_language = self.ngram_frequencies[language][ord(ngram[0])][ord(ngram[1])][ord(ngram[2])]
+        freq_first_two_chars_for_language = self.ngram_frequencies[language][ord(ngram[0])][ord(ngram[1])]['freq']
         if freq_first_two_chars_for_language == 0:
             return 0
         return freq_ngram_for_language / freq_first_two_chars_for_language
