@@ -69,7 +69,9 @@ class Eval:
             if self._precision[i] + self._recall[i] == 0:
                 result.append(0.0)
                 continue
-            beta_squared = 0.75 ** 2
+
+            # beta > 1 gives more weight to recall
+            beta_squared = 1.25 ** 2
             f1 = (1 + beta_squared) * (self._precision[i] * self._recall[i]) / \
                 (beta_squared * self._precision[i] + self._recall[i])
             result.append(f1)
