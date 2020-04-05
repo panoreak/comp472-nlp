@@ -2,32 +2,33 @@ from math import log10
 
 from Evaluation import Eval
 from TrainingModelFactory import TrainingModelFactory, BYOMTrainingModel
-from VocabularyFactory import VocabularyFactory, CaseInsensitiveAlphabetChars
+from VocabularyFactory import VocabularyFactory, CaseInsensitiveAlphabetChars, IsAlphaChars
 
 
 class Classifier:
-    def __init__(self, training_file, test_file, byom, vocabulary='2', ngram_size='3', smoothing_value='0.001'):
-        self.byom = byom
-        self.vocabulary = VocabularyFactory.get_vocabulary(vocabulary)
+    def __init__(self, training_file, test_file, byom, vocabulary=None, ngram_size=None, smoothing_value=None):
         self.test_file = test_file
 
-        # given δ must be within [0 ... 1]
-        # if the given δ is smaller than 0, use 0
-        # if the given δ is larger than 1, use 1
-        self.smoothing_value = max(float(smoothing_value), 0)
-        if self.smoothing_value is not 0:
-            self.smoothing_value = min(float(smoothing_value), 1)
-
         if byom:
+            self.vocabulary = IsAlphaChars()
             self.trace_file = 'trace_myModel.txt'
             self.eval_file = 'eval_myModel.txt'
-            self.training_model = BYOMTrainingModel(self.vocabulary, self.smoothing_value, training_file)
+            self.training_model = BYOMTrainingModel(self.vocabulary, 1*10**-50, training_file)
 
         else:
-            self.trace_file = 'trace_' + vocabulary + '_' + ngram_size + '_' + smoothing_value + '.txt'
-            self.eval_file = 'eval_' + vocabulary + '_' + ngram_size + '_' + smoothing_value + '.txt'
+            self.vocabulary = VocabularyFactory.get_vocabulary(vocabulary)
+
+            # given δ must be within [0 ... 1]
+            # if the given δ is smaller than 0, use 0
+            # if the given δ is larger than 1, use 1
+            smoothing_value = max(float(smoothing_value), 0)
+            if smoothing_value is not 0:
+                smoothing_value = min(float(smoothing_value), 1)
+
+            self.trace_file = 'trace_' + vocabulary + '_' + ngram_size + '_' + str(smoothing_value) + '.txt'
+            self.eval_file = 'eval_' + vocabulary + '_' + ngram_size + '_' + str(smoothing_value) + '.txt'
             self.training_model = TrainingModelFactory.get_nb_training_model(self.vocabulary, ngram_size,
-                                                                             self.smoothing_value,
+                                                                             smoothing_value,
                                                                              training_file)
 
     def classify(self):
@@ -50,14 +51,10 @@ class Classifier:
             if isinstance(self.vocabulary, CaseInsensitiveAlphabetChars):
                 tweet = tweet.lower()
 
-            ngrams = self.training_model.parse_tweet(tweet)
             highest_score = None
             language_with_highest_score = None
             for language in self.training_model.language_data.keys():
-                score = log10(self.training_model.get_probability_of_language(language)) if self.byom else 0
-                for ngram in ngrams:
-                    probability = self.training_model.get_ngram_probability(ngram, language)
-                    score += probability
+                score = self.training_model.get_language_score_of_tweet(language, tweet)
                 if highest_score is None or highest_score < score:
                     highest_score = score
                     language_with_highest_score = language
