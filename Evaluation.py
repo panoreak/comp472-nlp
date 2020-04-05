@@ -42,7 +42,7 @@ class Eval:
         for line in self._trace_file:
             correct_count += 1 if line.split()[-1] == 'correct' else 0
             tweet_count += 1
-        return correct_count / tweet_count
+        return correct_count / tweet_count if tweet_count != 0 else 0.0
 
     def compute_precision(self):
         result = []
@@ -63,9 +63,9 @@ class Eval:
     def compute_f1(self):
         result = []
         for i in range(len(self._precision)):
-            # TODO: division by zero cuz gl never predicts and gets correct
+            # TODO: handle division by zero cuz gl never predicts and gets correct
             if self._precision[i] + self._recall[i] == 0:
-                result.append(-1)
+                result.append(0.0)
                 continue
             f1 = 2 * (self._precision[i] * self._recall[i]) / \
                 (self._precision[i] + self._recall[i])
@@ -83,8 +83,8 @@ class Eval:
             avg += self._f1[i]
             w_avg += actual_total[key] * self._f1[i]
             total_freq += actual_total[key]
-        avg = avg / len(self._f1)
-        w_avg = w_avg / total_freq
+        avg = avg / len(self._f1) if len(self._f1) != 0 else 0.0
+        w_avg = w_avg / total_freq if total_freq != 0 else 0.0
         result[0] = avg
         result[1] = w_avg
         return result
