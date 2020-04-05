@@ -2,11 +2,15 @@ from math import log10
 
 from TrainingModelFactory import TrainingModelFactory
 from VocabularyFactory import VocabularyFactory, CaseInsensitiveAlphabetChars
+from Evaluation import Eval
 
 
 class NGramClassifier:
     def __init__(self, vocabulary, ngram_size, smoothing_value, training_file, test_file):
-        self.trace_file = 'trace_' + vocabulary + '_' + ngram_size + '_' + smoothing_value + '.txt'
+        self.trace_file = 'trace_' + vocabulary + '_' + \
+            ngram_size + '_' + smoothing_value + '.txt'
+        self.eval_file = 'eval_' + vocabulary + '_' + \
+            ngram_size + '_' + smoothing_value + '.txt'
         self.vocabulary = VocabularyFactory.get_vocabulary(vocabulary)
 
         # given δ must be within [0 ... 1]
@@ -46,11 +50,13 @@ class NGramClassifier:
             for language in self.training_model.language_data.keys():
                 score = 0
                 for ngram in ngrams:
-                    conditional_probability = self.training_model.get_ngram_probability(ngram, language)
+                    conditional_probability = self.training_model.get_ngram_probability(
+                        ngram, language)
                     if conditional_probability != 0:
                         score += log10(conditional_probability)
                     else:
-                        score += float('-inf')  # in case there is no smoothing value, assign negative infinity
+                        # in case there is no smoothing value, assign negative infinity
+                        score += float('-inf')
                 if highest_score is None or highest_score < score:
                     highest_score = score
                     language_with_highest_score = language
@@ -58,3 +64,7 @@ class NGramClassifier:
             languages_match = 'correct' if language_with_highest_score == actual_language else 'wrong'
             output_file.write(str.join('  ', [id, language_with_highest_score, str(highest_score), actual_language,
                                               languages_match]) + '\n')
+        input_file.close()
+        output_file.close()
+        eval = Eval(self.trace_file, self.eval_file)
+        eval.write_to_file()
