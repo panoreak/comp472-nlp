@@ -48,7 +48,10 @@ class Eval:
         result = []
         predicted_total = self.compute_predicted_total()
         for key in predicted_total:
-            p = self._most_likely_correct[key] / predicted_total[key]
+            try:
+                p = self._most_likely_correct[key] / predicted_total[key]
+            except ZeroDivisionError:
+                p = 0
             result.append(p)
         return result
 
