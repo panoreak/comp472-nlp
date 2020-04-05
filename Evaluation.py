@@ -10,7 +10,7 @@ class Eval:
         self._macro_and_weighted_f1 = self.compute_macro_and_weighted_f1()
         self._trace_file.close()
 
-    def compute_most_likely_correct(self):
+    def compute_most_likely_correct(self):  # number of documents correctly estimated, per language
         most_likely_correct = {
             'eu': 0, 'ca': 0, 'gl': 0, 'es': 0, 'en': 0, 'pt': 0}
         self._trace_file.seek(0)
@@ -48,10 +48,10 @@ class Eval:
         result = []
         predicted_total = self.compute_predicted_total()
         for key in predicted_total:
-            try:
-                p = self._most_likely_correct[key] / predicted_total[key]
-            except ZeroDivisionError:
-                p = 0
+            if predicted_total[key] == 0:
+                result.append(0.0)
+                continue
+            p = self._most_likely_correct[key] / predicted_total[key]
             result.append(p)
         return result
 
@@ -66,12 +66,12 @@ class Eval:
     def compute_f1(self):
         result = []
         for i in range(len(self._precision)):
-            # TODO: handle division by zero cuz gl never predicts and gets correct
             if self._precision[i] + self._recall[i] == 0:
                 result.append(0.0)
                 continue
-            f1 = 2 * (self._precision[i] * self._recall[i]) / \
-                (self._precision[i] + self._recall[i])
+            beta_squared = 0.75 ** 2
+            f1 = (1 + beta_squared) * (self._precision[i] * self._recall[i]) / \
+                (beta_squared * self._precision[i] + self._recall[i])
             result.append(f1)
         return result
 
