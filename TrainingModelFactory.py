@@ -128,14 +128,51 @@ class BigramTrainingModel(TrainingModel):
     def __init__(self, vocabulary, smoothing_value, training_file):
         super().__init__(vocabulary, smoothing_value, training_file)
 
-    def process_tweet(self, language, tweet):
-        pass
-
     def parse_tweet(self, tweet):
-        pass
+        bigrams = []
+        if len(tweet) < 2:
+            return bigrams
+
+        for i in range(len(tweet) - 1):
+            bigram = tweet[i] + tweet[i + 1]
+            if all(self.vocabulary.is_in_vocabulary(char) for char in bigram):
+                bigrams.append(bigram)
+        return bigrams
+
+    def process_tweet(self, language, tweet):
+        for bigram in self.parse_tweet(tweet):
+            self.ngram_frequencies[language]['total_count'] += 1
+
+            codepoint1 = ord(bigram[0])
+            codepoint2 = ord(bigram[1])
+
+            if codepoint1 not in self.ngram_frequencies[language]:
+                self.ngram_frequencies[language][codepoint1] = dict()
+                self.ngram_frequencies[language][codepoint1][codepoint2] = 1
+            else:
+                if codepoint2 not in self.ngram_frequencies[language][codepoint1]:
+                    self.ngram_frequencies[language][codepoint1][codepoint2] = 1
+                else:
+                    self.ngram_frequencies[language][codepoint1][codepoint2] += 1
 
     def get_ngram_probability(self, ngram, language):
-        pass
+        codepoint1 = ord(ngram[0])
+        codepoint2 = ord(ngram[1])
+
+        freq_ngram_for_language = self.smoothing_value
+        try:
+            freq_ngram_for_language += self.ngram_frequencies[language][codepoint1][codepoint2]
+        except KeyError:
+            pass
+
+        total_ngram_count_for_language = self.ngram_frequencies[language]['total_count'] + \
+                                         self.smoothing_value * (self.vocabulary_size ** 2)
+        probability = freq_ngram_for_language / total_ngram_count_for_language
+
+        if probability != 0:
+            return log10(probability)
+        else:
+            return float('-inf')  # in case there is no smoothing value, assign negative infinity
 
 
 class TrigramTrainingModel(TrainingModel):
@@ -204,25 +241,25 @@ class BYOMTrainingModel(TrainingModel):
         super().__init__(vocabulary, smoothing_value, training_file)
 
         self.unigramModel = UnigramTrainingModel(vocabulary, smoothing_value, training_file)
-        # self.bigramModel = BigramTrainingModel(vocabulary, smoothing_value, training_file)
+        self.bigramModel = BigramTrainingModel(vocabulary, smoothing_value, training_file)
         self.trigramModel = TrigramTrainingModel(vocabulary, smoothing_value, training_file)
 
     def train(self):
         self.unigramModel.train()
-        # self.bigramModel.train()
+        self.bigramModel.train()
         self.trigramModel.train()
 
     def process_tweet(self, language, tweet):
         self.unigramModel.process_tweet(language, tweet)
-        # self.bigramModel.process_tweet(language, tweet)
+        self.bigramModel.process_tweet(language, tweet)
         self.trigramModel.process_tweet(language, tweet)
 
-        # for bigram in self.bigramModel.parse_tweet(tweet):
-        #     codepoint1 = ord(bigram[0])
-        #     try:
-        #         self.ngram_frequencies[language][codepoint1]['total_count'] += 1
-        #     except KeyError:
-        #         self.ngram_frequencies[language][codepoint1]['total_count'] = 1
+        for bigram in self.bigramModel.parse_tweet(tweet):
+            codepoint1 = ord(bigram[0])
+            try:
+                self.ngram_frequencies[language][codepoint1]['total_count'] += 1
+            except KeyError:
+                self.ngram_frequencies[language][codepoint1]['total_count'] = 1
 
         for trigram in self.trigramModel.parse_tweet(tweet):
             codepoint1 = ord(trigram[0])
@@ -238,7 +275,7 @@ class BYOMTrainingModel(TrainingModel):
         codepoint3 = ord(ngram[2])
 
         freq_unigram = self.smoothing_value
-        # freq_bigram = self.smoothing_value
+        freq_bigram = self.smoothing_value
         freq_trigram = self.smoothing_value
 
         try:
@@ -246,10 +283,10 @@ class BYOMTrainingModel(TrainingModel):
         except KeyError:
             pass
 
-        # try:
-        #     freq_bigram += self.bigramModel.ngram_frequencies[language][codepoint1][codepoint2]
-        # except KeyError:
-        #     pass
+        try:
+            freq_bigram += self.bigramModel.ngram_frequencies[language][codepoint1][codepoint2]
+        except KeyError:
+            pass
 
         try:
             freq_trigram += self.trigramModel.ngram_frequencies[language][codepoint1][codepoint2][codepoint3]
@@ -263,11 +300,11 @@ class BYOMTrainingModel(TrainingModel):
         except KeyError:
             pass
 
-        # freq_first_char_bigram = self.smoothing_value * (self.vocabulary_size ** 2)
-        # try:
-        #     freq_first_char_bigram += self.bigramModel.ngram_frequencies[language][codepoint1]['total_count']
-        # except KeyError:
-        #     pass
+        freq_first_char_bigram = self.smoothing_value * (self.vocabulary_size ** 2)
+        try:
+            freq_first_char_bigram += self.bigramModel.ngram_frequencies[language][codepoint1]['total_count']
+        except KeyError:
+            pass
 
         unigram_count = self.smoothing_value * self.vocabulary_size
         try:
@@ -281,11 +318,11 @@ class BYOMTrainingModel(TrainingModel):
             # in case there is no smoothing value, assign negative infinity
             return float('-inf')
 
-        # try:
-        #     p_bigram_given_first_char = freq_bigram / freq_first_char_bigram
-        # except ZeroDivisionError:
-        #     # in case there is no smoothing value, assign negative infinity
-        #     return float('-inf')
+        try:
+            p_bigram_given_first_char = freq_bigram / freq_first_char_bigram
+        except ZeroDivisionError:
+            # in case there is no smoothing value, assign negative infinity
+            return float('-inf')
 
         try:
             p_unigram = freq_unigram / unigram_count
@@ -293,7 +330,7 @@ class BYOMTrainingModel(TrainingModel):
             # in case there is no smoothing value, assign negative infinity
             return float('-inf')
 
-        return log10(p_trigram_given_first_two_chars) + log10(p_unigram) # + log10(p_bigram_given_first_char)
+        return log10(p_trigram_given_first_two_chars) + log10(p_unigram) + log10(p_bigram_given_first_char)
 
     def get_probability_of_language(self, language):
         return self.unigramModel.get_probability_of_language(language)
