@@ -1,3 +1,4 @@
+import bisect
 from abc import ABC, abstractmethod
 from math import log10
 
@@ -74,8 +75,12 @@ class TrainingModel(ABC):
     def get_ngram_probability(self, ngram, language):
         pass
 
+    @abstractmethod
+    def get_ten_most_frequent_ngrams(self):
+        pass
+
     def get_language_score_of_tweet(self, language, tweet):
-        score = 0
+        score = log10(self.get_probability_of_language(language))
         for ngram in self.parse_tweet(tweet):
             probability = self.get_ngram_probability(ngram, language)
             if probability == 0:
@@ -128,6 +133,17 @@ class UnigramTrainingModel(TrainingModel):
 
         return freq_ngram_for_language / total_ngram_count_for_language
 
+    def get_ten_most_frequent_ngrams(self):
+        most_frequent_ngrams = dict()
+        for language in self.ngram_frequencies.keys():
+            most_frequent_ngrams[language] = []
+            for codepoint, frequency in self.ngram_frequencies[language].items():
+                if codepoint != 'total_count':
+                    bisect.insort(most_frequent_ngrams[language], (frequency, chr(codepoint)))
+                    if len(most_frequent_ngrams[language]) > 10:
+                        most_frequent_ngrams[language].pop(0)
+        return most_frequent_ngrams
+
 
 class BigramTrainingModel(TrainingModel):
     def __init__(self, vocabulary, smoothing_value, training_file):
@@ -173,6 +189,20 @@ class BigramTrainingModel(TrainingModel):
         total_ngram_count_for_language = self.ngram_frequencies[language]['total_count'] + \
                                          self.smoothing_value * (self.vocabulary_size ** 2)
         return freq_ngram_for_language / total_ngram_count_for_language
+
+    def get_ten_most_frequent_ngrams(self):
+        most_frequent_ngrams = dict()
+        for language in self.ngram_frequencies.keys():
+            most_frequent_ngrams[language] = []
+            for codepoint1 in self.ngram_frequencies[language].keys():
+                if codepoint1 != 'total_count':
+                    for codepoint2, frequency in self.ngram_frequencies[language][codepoint1].items():
+                        if codepoint2 != 'total_count':
+                            bigram = chr(codepoint1) + chr(codepoint2)
+                            bisect.insort(most_frequent_ngrams[language], (frequency, bigram))
+                            if len(most_frequent_ngrams[language]) > 10:
+                                most_frequent_ngrams[language].pop(0)
+        return most_frequent_ngrams
 
 
 class TrigramTrainingModel(TrainingModel):
@@ -227,6 +257,21 @@ class TrigramTrainingModel(TrainingModel):
                                          self.smoothing_value * (self.vocabulary_size ** 3)
         return freq_ngram_for_language / total_ngram_count_for_language
 
+    def get_ten_most_frequent_ngrams(self):
+        most_frequent_ngrams = dict()
+        for language in self.ngram_frequencies.keys():
+            most_frequent_ngrams[language] = []
+            for codepoint1 in self.ngram_frequencies[language].keys():
+                if codepoint1 != 'total_count':
+                    for codepoint2 in self.ngram_frequencies[language][codepoint1].keys():
+                        for codepoint3, frequency in self.ngram_frequencies[language][codepoint1][codepoint2].items():
+                            if codepoint3 != 'total_count':
+                                trigram = chr(codepoint1) + chr(codepoint2) + chr(codepoint3)
+                                bisect.insort(most_frequent_ngrams[language], (frequency, trigram))
+                                if len(most_frequent_ngrams[language]) > 10:
+                                    most_frequent_ngrams[language].pop(0)
+        return most_frequent_ngrams
+
 
 class BYOMTrainingModel(TrainingModel):
     def parse_tweet(self, tweet):
@@ -265,7 +310,7 @@ class BYOMTrainingModel(TrainingModel):
                 self.ngram_frequencies[language][codepoint1][codepoint2]['total_count'] = 1
 
     def get_language_score_of_tweet(self, language, tweet):
-        score = 0
+        score = log10(self.get_probability_of_language(language))
         p_first_char = self.unigramModel.get_ngram_probability(tweet[0], language)
         if p_first_char == 0:
             return float('-inf')
@@ -327,3 +372,6 @@ class BYOMTrainingModel(TrainingModel):
 
     def get_probability_of_language(self, language):
         return self.unigramModel.get_probability_of_language(language)
+
+    def get_ten_most_frequent_ngrams(self):
+        return self.trigramModel.get_ten_most_frequent_ngrams()

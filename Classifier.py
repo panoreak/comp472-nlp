@@ -35,6 +35,10 @@ class Classifier:
         self.training_model.train()
         self.test()
 
+    def get_most_frequent_ngrams(self):
+        self.training_model.train()
+        return self.training_model.get_ten_most_frequent_ngrams()
+
     def test(self):
         input_file = open(self.test_file, 'r', encoding="utf-8")
         output_file = open(self.trace_file, 'w', encoding="utf-8")

@@ -59,6 +59,10 @@ class Eval:
         result = []
         actual_total = self.compute_actual_total()
         for key in actual_total:
+            if actual_total[key] == 0:
+                result.append(0.0)
+                continue
+
             r = self._most_likely_correct[key] / actual_total[key]
             result.append(r)
         return result
